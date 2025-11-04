@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
@@ -9,38 +9,111 @@ import {
 } from "@/components/ui/chart";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 
-const portfolioData = [
-  { month: 'Янв', value: 1250000, profit: 45000 },
-  { month: 'Фев', value: 1320000, profit: 70000 },
-  { month: 'Мар', value: 1280000, profit: -40000 },
-  { month: 'Апр', value: 1450000, profit: 170000 },
-  { month: 'Май', value: 1580000, profit: 130000 },
-  { month: 'Июн', value: 1620000, profit: 40000 },
-];
+const API_URL = 'https://functions.poehali.dev/1cbe5175-57ec-4d6b-bfa8-646c275977a5';
 
-const tradingData = [
-  { date: '01.11', volume: 250000, trades: 12 },
-  { date: '02.11', volume: 340000, trades: 18 },
-  { date: '03.11', volume: 180000, trades: 8 },
-  { date: '04.11', volume: 420000, trades: 22 },
-];
+interface Trade {
+  id: number;
+  ticker: string;
+  trade_type: string;
+  quantity: number;
+  price: number;
+  total: number;
+  time: string;
+}
 
-const assetsAllocation = [
-  { asset: 'Акции', percent: 45, value: 729000 },
-  { asset: 'Облигации', percent: 30, value: 486000 },
-  { asset: 'Валюта', percent: 15, value: 243000 },
-  { asset: 'Деривативы', percent: 10, value: 162000 },
-];
+interface PortfolioSnapshot {
+  month: string;
+  value: number;
+  profit: number;
+}
 
-const recentTrades = [
-  { id: 1, ticker: 'AAPL', type: 'Покупка', qty: 50, price: 178.50, total: 8925, time: '14:23' },
-  { id: 2, ticker: 'TSLA', type: 'Продажа', qty: 25, price: 242.30, total: 6057.5, time: '13:45' },
-  { id: 3, ticker: 'MSFT', type: 'Покупка', qty: 30, price: 378.20, total: 11346, time: '12:10' },
-  { id: 4, ticker: 'GOOGL', type: 'Покупка', qty: 15, price: 141.80, total: 2127, time: '11:30' },
-];
+interface Asset {
+  asset: string;
+  percent: number;
+  value: number;
+}
+
+interface TopHolding {
+  ticker: string;
+  name: string;
+  change: string;
+  value: number;
+}
+
+interface AnalyticsData {
+  trades: Trade[];
+  portfolio: PortfolioSnapshot[];
+  assets: Asset[];
+  topHoldings: TopHolding[];
+  summary: {
+    totalAssets: number;
+    totalProfit: number;
+    todayTrades: number;
+  };
+}
 
 export default function Index() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AnalyticsData | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(API_URL);
+        const result = await response.json();
+        setData(result);
+      } catch (error) {
+        console.error('Failed to fetch analytics data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Загрузка данных...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Icon name="AlertCircle" size={48} className="text-destructive mx-auto mb-4" />
+          <p className="text-foreground text-xl mb-2">Ошибка загрузки данных</p>
+          <p className="text-muted-foreground">Попробуйте обновить страницу</p>
+        </div>
+      </div>
+    );
+  }
+
+  const recentTrades = data.trades.map(t => ({
+    id: t.id,
+    ticker: t.ticker,
+    type: t.trade_type,
+    qty: t.quantity,
+    price: t.price,
+    total: t.total,
+    time: t.time
+  }));
+
+  const portfolioData = data.portfolio;
+  const assetsAllocation = data.assets;
+  const topStocks = data.topHoldings;
+  const totalAssets = data.summary.totalAssets;
+  const totalProfit = data.summary.totalProfit;
+  const todayTrades = data.summary.todayTrades;
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,7 +132,7 @@ export default function Index() {
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Total Assets</p>
-                <p className="text-lg font-bold font-mono text-foreground">$1,620,000</p>
+                <p className="text-lg font-bold font-mono text-foreground">${totalAssets.toLocaleString()}</p>
               </div>
               <div className="w-2 h-2 rounded-full bg-success animate-glow"></div>
             </div>
@@ -98,7 +171,7 @@ export default function Index() {
                   <span className="text-xs px-2 py-1 rounded-full bg-success/20 text-success font-mono">+8.7%</span>
                 </div>
                 <p className="text-sm text-muted-foreground mb-1">Общая прибыль</p>
-                <p className="text-2xl font-bold font-mono">$375,000</p>
+                <p className="text-2xl font-bold font-mono">${totalProfit.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-2">С начала года</p>
               </Card>
 
@@ -107,10 +180,10 @@ export default function Index() {
                   <div className="w-12 h-12 rounded-lg bg-secondary/10 flex items-center justify-center">
                     <Icon name="Activity" className="text-secondary" size={24} />
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary font-mono">60</span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary font-mono">{todayTrades}</span>
                 </div>
                 <p className="text-sm text-muted-foreground mb-1">Сделок сегодня</p>
-                <p className="text-2xl font-bold font-mono">$1.19M</p>
+                <p className="text-2xl font-bold font-mono">{recentTrades.length}</p>
                 <p className="text-xs text-muted-foreground mt-2">Объем торгов</p>
               </Card>
 
@@ -407,12 +480,7 @@ export default function Index() {
                   <p className="text-sm text-muted-foreground">По доходности</p>
                 </div>
                 <div className="space-y-4">
-                  {[
-                    { ticker: 'AAPL', name: 'Apple Inc.', change: '+12.4%', value: 178500 },
-                    { ticker: 'MSFT', name: 'Microsoft Corp.', change: '+8.7%', value: 145200 },
-                    { ticker: 'NVDA', name: 'NVIDIA Corp.', change: '+24.1%', value: 98600 },
-                    { ticker: 'GOOGL', name: 'Alphabet Inc.', change: '+6.2%', value: 82300 },
-                  ].map((stock, idx) => (
+                  {topStocks.map((stock, idx) => (
                     <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -425,7 +493,7 @@ export default function Index() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-mono font-semibold text-success">{stock.change}</p>
-                        <p className="text-xs text-muted-foreground font-mono">${stock.value.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground font-mono">${Number(stock.value).toLocaleString()}</p>
                       </div>
                     </div>
                   ))}

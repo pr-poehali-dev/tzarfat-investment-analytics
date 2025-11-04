@@ -1,0 +1,16 @@
+{
+  "tests": [
+    {
+      "name": "Get analytics data successfully",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Handle OPTIONS request for CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    }
+  ]
+}
